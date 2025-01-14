@@ -9,7 +9,7 @@ namespace server {
 
 class Server;
 
-class Connection {
+class Connection : public std::enable_shared_from_this<Connection> {
  public:
   Connection(const size_t id, cache::TaskQueue& queue, Server& server);
 

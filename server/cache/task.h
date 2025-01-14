@@ -1,8 +1,11 @@
 #pragma once
 
-#include <string>
-#include <optional>
+#include <server/connection-fwd.h>
+
 #include <functional>
+#include <memory>
+#include <optional>
+#include <string>
 
 namespace server::cache {
 
@@ -20,12 +23,12 @@ struct Task {
 
 struct TaskWithId {
   Task task;
-  size_t id;
+  std::shared_ptr<Connection> conn;
 };
 
 struct Result {
   std::shared_ptr<std::string> result;
-  size_t id;
+  std::shared_ptr<Connection> conn;
 };
 
 std::optional<Task> ParseTask(const std::string_view& message);

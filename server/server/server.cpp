@@ -33,7 +33,7 @@ void Server::Dispatch() {
     if (!result.has_value()) {
       continue;
     }
-    connections_[result->id]->Write(result->result);
+    result->conn->Write(result->result);
   }
 }
 
@@ -46,7 +46,7 @@ std::shared_ptr<Connection> Server::AddConnection() {
 }
 
 void Server::RemoveConnection(const size_t id) {
-  // connections_.erase(id);
+  connections_.erase(id);
 }
 
 void Server::AcceptHandler(

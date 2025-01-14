@@ -37,7 +37,7 @@ void Connection::OnRead(const boost::system::error_code& ec,
   if (!task) {
     Write(std::make_shared<std::string>("Failed to parse"));
   }
-  if (!queue_.TryPush({std::move(*task), Id()})) {
+  if (!queue_.TryPush({std::move(*task), shared_from_this()})) {
     Write(std::make_shared<std::string>("Server overloaded"));
   }
 }

@@ -20,15 +20,25 @@ func connectToServer(assert *assert.Assertions) *net.TCPConn {
 	return conn
 }
 
-func runQuery(assert *assert.Assertions, conn *net.TCPConn, query string) string {
+func runQueryErr(conn *net.TCPConn, query string) (string, error) {
 	_, err := conn.Write([]byte(query + "\n"))
-	assert.Nil(err)
+	if err != nil {
+		return "", err
+	}
 
 	reply := make([]byte, 512)
 	_, err = conn.Read(reply)
-	assert.Nil(err)
+	if err != nil {
+		return "", err
+	}
 
-	return strings.TrimRight(strings.TrimRight(string(reply), "\x00"), "\n")
+	return strings.TrimRight(strings.TrimRight(string(reply), "\x00"), "\n"), nil
+}
+
+func runQuery(assert *assert.Assertions, conn *net.TCPConn, query string) string {
+	res, err := runQueryErr(conn, query)
+	assert.Nil(err)
+	return res
 }
 
 func TestCorrectness(t *testing.T) {
@@ -60,7 +70,7 @@ func TestLRU(t *testing.T) {
 		assert.Equal(fmt.Sprintf("value%d", x), runQuery(assert, conn, fmt.Sprintf("G key%d", x)))
 	}
 
-	for x := 0; x < cnt - 1000; x += 1 {
+	for x := 0; x < cnt-1000; x += 1 {
 		assert.Equal("NOT FOUND", runQuery(assert, conn, fmt.Sprintf("G key%d", x)))
 	}
 
@@ -69,7 +79,7 @@ func TestLRU(t *testing.T) {
 	}
 
 	cnt_of_operations := int64(cnt * 4)
-	assert.Less(time.Since(start).Microseconds() / cnt_of_operations, int64(500))
+	assert.Less(time.Since(start).Microseconds()/cnt_of_operations, int64(500))
 }
 
 func TestStress(t *testing.T) {
@@ -102,6 +112,40 @@ func TestStress(t *testing.T) {
 	}
 	wg.Wait()
 
-	var cnt_of_operations int64 = 100 * 50 * 6
-	assert.Less(time.Since(start).Microseconds() / cnt_of_operations, int64(500))
+	var cnt_of_operations int64 = int64(100 * 6 * goroutine_cnt)
+	assert.Less(time.Since(start).Microseconds()/cnt_of_operations, int64(500))
+}
+
+// / Checks unexpected behaviour
+func TestTSANOneConn(t *testing.T) {
+	assert := assert.New(t)
+
+	conn := connectToServer(assert)
+
+	test := func(x int) {
+		for i := 0; i < 100; i += 1 {
+			go runQueryErr(conn, fmt.Sprintf("G key%d", x))
+			go runQueryErr(conn, fmt.Sprintf("P key%d value%d", x, x))
+			go runQueryErr(conn, "G key")
+			go runQueryErr(conn, fmt.Sprintf("D key%d", x))
+		}
+	}
+
+	goroutine_cnt := 5
+	randConst := 100007 // Just in case to not intersect other tests
+
+	for goroutine_i := 0; goroutine_i < goroutine_cnt; goroutine_i += 1 {
+		go test(goroutine_i * randConst)
+	}
+
+	time.Sleep(time.Second)
+	conn.Close()
+	time.Sleep(time.Millisecond * 100)
+
+	conn = connectToServer(assert)
+	defer conn.Close()
+
+	for i := 0; i < goroutine_cnt; i += 1 {
+		runQuery(assert, conn, fmt.Sprintf("D key%d", i*randConst))
+	}
 }

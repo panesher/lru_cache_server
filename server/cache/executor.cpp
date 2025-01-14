@@ -20,7 +20,7 @@ void TaskExecutor::Start() {
     auto result = Execute(std::move(task_with_callback->task));
 
     /// could be missed, should retry query
-    result_queue_.TryPush({std::move(result), task_with_callback->id});
+    result_queue_.TryPush({std::move(result), task_with_callback->conn});
   }
 }
 
